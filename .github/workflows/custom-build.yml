@@ -69,6 +69,7 @@ jobs:
       coreRepositoryBranch: ${{ inputs.coreRepositoryBranch }}
 
   mac-builder:
+    needs: [linux-builder]
     name: "🔨 Build - MacOS"
     uses: ./.github/workflows/build-Mac.yml
     secrets: inherit
@@ -84,6 +85,7 @@ jobs:
       coreRepositoryBranch: ${{ inputs.coreRepositoryBranch }}
 
   windows-builder:
+    needs: [mac-builder]
     name: "🔨 Build - Windows"
     uses: ./.github/workflows/build-Windows.yml
     secrets: inherit
@@ -97,3 +99,24 @@ jobs:
       coreRepositoryAuthor: ${{ inputs.coreRepositoryAuthor }}
       coreRepositoryName: ${{ inputs.coreRepositoryName }}
       coreRepositoryBranch: ${{ inputs.coreRepositoryBranch }}
+
+  publish:
+    needs: [linux-builder, mac-builder, windows-builder]
+    runs-on: ubuntu-latest
+    steps: 
+      - name: "Download builds from artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: builds
+          pattern: YARG (*) - *
+      
+      - name: "[Post-build] Upload to releases"
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          release_name: ${{ inputs.versionName }}
+          tag: ${{ inputs.versionName }}
+          file: builds/*
+          file_glob: true
+          body: "🔨 Custom Build - ${{ inputs.versionName }}"
