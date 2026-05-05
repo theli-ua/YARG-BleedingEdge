@@ -1,4 +1,4 @@
-name: 🔨 Build - Windows
+name: 🔨 Build - Windows (Unity 6)
 
 on:
   workflow_call:
@@ -53,8 +53,8 @@ on:
 env:
   platform: "Windows"
 
-  unityVersion: ${{ vars.UNITY_VERSION }}
-  unityVersionHash: ${{ vars.UNITY_VERSION_HASH }}
+  unityVersion: ${{ vars.UNITY6_VERSION }}
+  unityVersionHash: ${{ vars.UNITY6_VERSION_HASH }}
   blenderMajorVersion: "4.3"
   blenderVersion: "4.3.0"
 

@@ -53,10 +53,10 @@ on:
 env:
   platform: "MacOS"
 
-  unityVersion: "2021.3.36f1"
-  unityVersionHash: "7a0645017be0"
-  blenderMajorVersion: "3.4"
-  blenderVersion: "3.4.1"
+  unityVersion: ${{ vars.UNITY_VERSION }}
+  unityVersionHash: ${{ vars.UNITY_VERSION_HASH }}
+  blenderMajorVersion: "4.3"
+  blenderVersion: "4.3.0"
 
   versionName: ${{ inputs.versionName }}
 
@@ -141,7 +141,7 @@ jobs:
         with:
           path: ${{ runner.temp }}/BlenderInstall
           key: Mac_Blender-${{ env.blenderVersion }}
-          restore-keys: Mac_Blender-
+          # restore-keys: Mac_Blender-
 
       - if: ${{ steps.blender.outputs.cache-hit != 'true' }}
         name: "[Pre-install] Download Blender (${{ env.blenderVersion }})"

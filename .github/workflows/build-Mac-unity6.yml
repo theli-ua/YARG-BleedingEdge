@@ -1,4 +1,4 @@
-name: 🔨 Build - Windows
+name: 🔨 Build - Mac (Unity 6)
 
 on:
   workflow_call:
@@ -29,7 +29,7 @@ on:
 
       # Inputs - YARG.Core repository
       customCoreRepository:
-        description: "Using custom YARG.Core repository"
+        description: "Using custom YARG.Core repository/branch"
         type: boolean
         default: false
       coreRepositoryAuthor:
@@ -48,13 +48,13 @@ on:
     outputs:
       artifactId:
         description: "Artifact ID"
-        value: ${{ jobs.windowsBuilder.outputs.artifactId }}
+        value: ${{ jobs.macBuilder.outputs.artifactId }}
 
 env:
-  platform: "Windows"
+  platform: "MacOS"
 
-  unityVersion: ${{ vars.UNITY_VERSION }}
-  unityVersionHash: ${{ vars.UNITY_VERSION_HASH }}
+  unityVersion: ${{ vars.UNITY6_VERSION }}
+  unityVersionHash: ${{ vars.UNITY6_VERSION_HASH }}
   blenderMajorVersion: "4.3"
   blenderVersion: "4.3.0"
 
@@ -69,30 +69,12 @@ env:
   coreRepositoryBranch: ${{ inputs.coreRepositoryBranch }}
 
 jobs:
-  windowsBuilder:
-    name: 🔨 Build - Windows
-    runs-on: windows-2025
+  macBuilder:
+    name: 🔨 Build - MacOS
+    runs-on: macos-latest
     timeout-minutes: 90
 
     steps:
-      #############################
-      #       Install Unity       #
-      #############################
-
-      - name: "[Install] Download Unity Editor + Windows IL2CPP builder"
-        continue-on-error: true
-        run: >
-          mkdir ${{ runner.temp }}\UnityInstall;
-          curl -L -o "${{ runner.temp }}\UnityInstall\UnitySetup64-${{ env.unityVersion }}.exe" https://download.unity3d.com/download_unity/${{ env.unityVersionHash }}/Windows64EditorInstaller/UnitySetup64-${{ env.unityVersion }}.exe;
-          curl -L -o "${{ runner.temp }}\UnityInstall\UnitySetup-Windows-IL2CPP-Support-for-Editor-${{ env.unityVersion }}.exe" https://download.unity3d.com/download_unity/${{ env.unityVersionHash }}/TargetSupportInstaller/UnitySetup-Windows-IL2CPP-Support-for-Editor-${{ env.unityVersion }}.exe;
-
-      - name: "[Install] Install Unity"
-        run: >
-          $UNITY_INSTALLARGUMENTS = "/S /D=${{ runner.temp }}\\Unity";
-          Start-Process "${{ runner.temp }}\UnityInstall\UnitySetup64-${{ env.unityVersion }}.exe" -ArgumentList $UNITY_INSTALLARGUMENTS -wait -nonewwindow;
-          Start-Process "${{ runner.temp }}\UnityInstall\UnitySetup-Windows-IL2CPP-Support-for-Editor-${{ env.unityVersion }}.exe" -ArgumentList $UNITY_INSTALLARGUMENTS -wait -nonewwindow;
-          Remove-Item -Recurse -Force -Path ${{ runner.temp }}\UnityInstall\*;
-
       #############################
       #          Checkout         #
       #############################
@@ -158,19 +140,19 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/BlenderInstall
-          key: Windows_Blender-${{ env.blenderVersion }}
-          # restore-keys: Windows_Blender-
+          key: Mac_Blender-${{ env.blenderVersion }}
+          # restore-keys: Mac_Blender-
 
       - if: ${{ steps.blender.outputs.cache-hit != 'true' }}
         name: "[Pre-install] Download Blender (${{ env.blenderVersion }})"
         continue-on-error: true
-        run: mkdir ${{ runner.temp }}\BlenderInstall && curl -L -o "${{ runner.temp }}\BlenderInstall\blender.msi" https://download.blender.org/release/Blender${{ env.blenderMajorVersion }}/blender-${{ env.blenderVersion }}-windows-x64.msi
+        run: mkdir ${{ runner.temp }}/BlenderInstall && curl -L -o "${{ runner.temp }}/BlenderInstall/blender.dmg" https://download.blender.org/release/Blender${{ env.blenderMajorVersion }}/blender-${{ env.blenderVersion }}-macos-x64.dmg
 
       - name: "[Pre-install] Install Blender (${{ env.blenderVersion }})"
         run: >
-          $BLENDERMSI = "${{ runner.temp }}\BlenderInstall\blender.msi";
-          $BLENDERARGS = "/I $BLENDERMSI ALLUSERS=1 /qn /norestart";
-          Start-Process "msiexec.exe" -ArgumentList $BLENDERARGS -wait -nonewwindow
+          hdiutil attach ${{ runner.temp }}/BlenderInstall/blender.dmg && 
+          cp -R /Volumes/Blender/Blender.app /Applications && 
+          hdiutil unmount /Volumes/Blender
 
       #############################
       #     Restore  Packages     #
@@ -190,40 +172,47 @@ jobs:
 
       - if: ${{ inputs.buildType == 'development' }}
         name: "[Pre-build] Replace icon with Development"
-        shell: bash
         run: "cp -f bleedingedge/static/Icon_Development.png Assets/Art/UI/Icon_Stable.png"
 
       - if: ${{ inputs.buildType == 'nightly' }}
         name: "[Pre-build] Replace icon with Nightly"
-        shell: bash
         run: "cp -f bleedingedge/static/Icon_Nightly.png Assets/Art/UI/Icon_Stable.png"
 
       #############################
       #           Build           #
       #############################
 
+      - name: "[Install] Download Unity Editor + Mac IL2CPP builder"
+        run: |
+          mkdir ${{ runner.temp }}/UnityInstall &&
+          curl -L -o "${{ runner.temp }}/UnityInstall/UnitySetup-Editor.pkg" https://download.unity3d.com/download_unity/${{ env.unityVersionHash }}/MacEditorInstaller/Unity-${{ env.unityVersion }}.pkg &&
+          curl -L -o "${{ runner.temp }}/UnityInstall/UnitySetup-Mac-IL2CPP-Support.pkg" https://download.unity3d.com/download_unity/${{ env.unityVersionHash }}/MacEditorTargetInstaller/UnitySetup-Mac-IL2CPP-Support-for-Editor-${{ env.unityVersion }}.pkg
+
+      - name: "[Install] Install Unity Editor + Mac IL2CPP builder"
+        run: |
+          sudo installer -pkg "${{ runner.temp }}/UnityInstall/UnitySetup-Editor.pkg" -target "/" -verbose &&
+          sudo installer -pkg "${{ runner.temp }}/UnityInstall/UnitySetup-Mac-IL2CPP-Support.pkg" -target "/" -verbose &&
+          rm -rf "${{ runner.temp }}/UnityInstall"
+
       - name: "[Build] Run Builder"
-        run: >
-          ${{ runner.temp }}/Unity/Editor/Unity.exe -quit -batchmode -nographics -projectPath ${{ github.workspace }} -buildTarget StandaloneWindows64 -buildWindows64Player ${{ github.workspace }}/build/YARG.exe -username ${{ secrets.WINDOWS_UNITY_EMAIL || secrets.UNITY_EMAIL }} -password ${{ secrets.WINDOWS_UNITY_PASSWORD || secrets.UNITY_PASSWORD }} -serial ${{ secrets.WINDOWS_UNITY_SERIAL || secrets.UNITY_SERIAL }} -logfile | Out-Host;
-          Write-Output "$('Finished build, exit code ')$($LastExitCode)$('"')";
-          Remove-Item -Recurse -Force -Path ${{ github.workspace }}\build\YARG_BurstDebugInformation_DoNotShip\*;
+        run: |
+          /Applications/Unity/Unity-${{ env.unityVersion }}/Unity.app/Contents/MacOS/Unity -quit -batchmode -nographics -projectPath ${{ github.workspace }} -buildTarget StandaloneOSX -buildOSXUniversalPlayer ${{ github.workspace }}/build/YARG.app -username ${{ secrets.MAC_UNITY_EMAIL || secrets.UNITY_EMAIL }} -password ${{ secrets.MAC_UNITY_PASSWORD || secrets.UNITY_PASSWORD }} -serial ${{ secrets.MAC_UNITY_SERIAL || secrets.UNITY_SERIAL }} -logfile -
 
       - name: "[Post-build] Return license"
         continue-on-error: true
-        run: ${{ runner.temp }}/Unity/Editor/Unity.exe -quit -batchmode -nographics -returnlicense -projectPath ${{ github.workspace }} -username ${{ secrets.WINDOWS_UNITY_EMAIL || secrets.UNITY_EMAIL }} -password ${{ secrets.WINDOWS_UNITY_PASSWORD || secrets.UNITY_PASSWORD }} -logfile | Out-Host;
+        run: /Applications/Unity/Unity-${{ env.unityVersion }}/Unity.app/Contents/MacOS/Unity -quit -batchmode -nographics -returnlicense -projectPath ${{ github.workspace }} -username ${{ secrets.MAC_UNITY_EMAIL || secrets.UNITY_EMAIL }} -password ${{ secrets.MAC_UNITY_PASSWORD || secrets.UNITY_PASSWORD }} -logfile -
 
       #############################
       #         Compress          #
       #############################
 
-      - name: "[Post-build] Compress for release"
-        run: >
-          mkdir Release;
-          Compress-Archive -Path ${{ github.workspace }}/build/* -DestinationPath "${{ github.workspace }}/Release/YARG_${{ env.versionName }}-Windows-x64.zip";
+      - name: "[Post-build] Compress to a .zip"
+        run: ditto -c -k --keepParent build/YARG.app "Release/YARG_${{ env.versionName }}-MacOS-Universal.zip"
 
       #############################
       #          Upload           #
       #############################
+
       - name: "[Post-build] Upload to artifacts"
         id: artifacts
         uses: actions/upload-artifact@v4
