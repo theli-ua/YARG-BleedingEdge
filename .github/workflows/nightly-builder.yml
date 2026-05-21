@@ -1,8 +1,8 @@
 name: 🤖🔨 Automatic Nightly Builder
 
 on: 
-  schedule:
-    - cron: '25 0,12 * * *'
+  # schedule:
+    # - cron: '25 0,12 * * *'
   workflow_dispatch:
 
 permissions:
